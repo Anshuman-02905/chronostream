@@ -1,0 +1,45 @@
+# ===== Go build artifacts =====
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# ===== Go workspace =====
+go.work
+go.work.sum
+
+# ===== Vendor (if not committing) =====
+vendor/
+
+# ===== Build outputs =====
+bin/
+dist/
+build/
+
+# ===== Logs =====
+*.log
+
+# ===== Environment variables =====
+.env
+.env.*
+!.env.example
+
+# ===== Docker =====
+docker-compose.override.yml
+
+# ===== IDE / Editors =====
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== Coverage =====
+coverage.out
+coverage/
