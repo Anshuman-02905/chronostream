@@ -1,8 +1,10 @@
 package event
 
-// Frequ ency Represents how often a event is emitted
+// Frequency Represents how often a event is emitted
 // It is intentionally typed (not string) to guarantee
-//compile-safety and determinstic behaviour
+//compile-safety
+// Exhastive Switch handling
+// determinstic behaviour
 
 type Frequency uint8
 
@@ -25,12 +27,22 @@ const (
 //Once created this struct must never change the shape lightly
 
 type Event struct {
-	//unix timestamp in nanoseconds (explicit and unambigous)
+	//Deterministeic Identity
+	ID string
+
+	//Core Timing
+	////unix timestamp in nanoseconds (explicit and unambigous)
 	Timestamp int64
-
-	//Frequency at which this event was guaranteed
+	////Frequency at which this event was guaranteed
 	Frequency Frequency
+	////Sequence number within the same timestamp+frequency window
+	Sequence uint64
 
-	//Sequence number within the same timestamp+frequency window
-	Sequence int64
+	//Deterministic Seed for downstream systems
+	Seed int64
+	//Schema Evolution Safety
+	SchemaVersion uint16
+	//Producer Metadata (flat ,immutable)
+	ProducerVersion string
+	InstanceID      string
 }
