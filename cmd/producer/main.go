@@ -9,7 +9,7 @@ import (
 
 type ProducerStruct struct {
 	version int
-	uuid    int
+	uuid    uint8
 }
 
 type Event struct {
@@ -17,7 +17,7 @@ type Event struct {
 	timestamp       time.Time
 	FrequencyType   string
 	monotonicSeqNum int
-	//Deterministic Signal Seed
+
 	Producer ProducerStruct
 	Version  string
 }
@@ -29,5 +29,4 @@ func main() {
 	for range ticker.C {
 		fmt.Println(ts.Now())
 	}
-
 }
