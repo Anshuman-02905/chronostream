@@ -4,13 +4,14 @@ import (
 	"sync"
 
 	"github.com/Anshuman-02905/chronostream/internal/event"
+	"github.com/sirupsen/logrus"
 )
 
 // this does one thing return the next sequence for a given frequency
 // no timestamp awareness
 // no builder knowledge(event)
 // no scheduler knowledge
-type Sequnecer interface {
+type Sequencer interface {
 	Next(freq event.Frequency) uint64
 }
 
@@ -19,11 +20,18 @@ type RealSequencer struct {
 	mu       sync.Mutex
 }
 
-//Behaviur
+// Behaviur
 // Independent counter per frequency
 // Monotoninc per frequency
 // never resets
 // thread safe
+func New() *RealSequencer {
+	logrus.Infof("Creating Sequencer")
+
+	return &RealSequencer{
+		counters: make(map[event.Frequency]uint64),
+	}
+}
 
 func (s *RealSequencer) Next(freq event.Frequency) uint64 {
 	s.mu.Lock()

@@ -7,6 +7,7 @@ import (
 	"github.com/Anshuman-02905/chronostream/internal/event"
 	"github.com/Anshuman-02905/chronostream/internal/scheduler"
 	"github.com/Anshuman-02905/chronostream/internal/sequence"
+	"github.com/sirupsen/logrus"
 )
 
 //Engine is the composition root
@@ -31,6 +32,8 @@ func New(
 	producerVersion string,
 	instanceID string,
 ) *Engine {
+	logrus.Infof("Creating Engine event %v,%v,%v,%v,%v", s, seq, buf, producerVersion, instanceID)
+
 	return &Engine{
 		scheduler:       s,
 		sequencer:       seq,
@@ -41,6 +44,12 @@ func New(
 }
 
 // Engine owns Dependencies MetaData Constants and Lifecycle
+// Engine does not compute Boundaries
+// Does not compute Sequences
+// Does not Mutate events
+// Does not block Scheduler
+// Does not Know Transport
+// Only Wires/orchaestrate/glue services
 func (e *Engine) Start(ctx context.Context) {
 	e.scheduler.Start(ctx)
 
@@ -49,7 +58,10 @@ func (e *Engine) Start(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				return
-			case tick := <-e.scheduler.Ticks():
+			case tick, ok := <-e.scheduler.Ticks():
+				if !ok {
+					return
+				}
 				seq := e.sequencer.Next(tick.Frequency)
 				ev := event.Build(
 					tick.Frequency,
@@ -58,6 +70,7 @@ func (e *Engine) Start(ctx context.Context) {
 					e.producerVersion,
 					e.instanceID,
 				)
+				e.buffer.Offer(ev)
 			}
 		}
 	}()

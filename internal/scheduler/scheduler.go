@@ -6,6 +6,7 @@ import (
 
 	"github.com/Anshuman-02905/chronostream/internal/event"
 	"github.com/Anshuman-02905/chronostream/internal/monotime"
+	"github.com/sirupsen/logrus"
 )
 
 //Scheduler Charectersticks
@@ -54,6 +55,7 @@ type RealScheduler struct {
 }
 
 func New(freq event.Frequency, ts monotime.TimeSource, bufferSize int) *RealScheduler {
+	logrus.Infof("Creating Scheduler %v,%v", freq, ts)
 	return &RealScheduler{
 		frequency: freq,
 		ts:        ts,
@@ -170,3 +172,5 @@ func (s *RealScheduler) Start(ctx context.Context) {
 func (s *RealScheduler) Ticks() <-chan Tick {
 	return s.ticks
 }
+
+//NEED TO ADD BACKWARD TIME JUMP Resolution

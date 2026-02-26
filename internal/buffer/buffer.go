@@ -2,6 +2,7 @@ package buffer
 
 import (
 	"github.com/Anshuman-02905/chronostream/internal/event"
+	"github.com/sirupsen/logrus"
 )
 
 // defined Buffer Interface
@@ -20,6 +21,8 @@ type RealBuffer struct {
 
 // It is a bounded Buffer
 func New(capacity int) *RealBuffer {
+	logrus.Infof("Creating buffer %v", capacity)
+
 	return &RealBuffer{
 		ch: make(chan event.Event, capacity),
 	}
@@ -27,6 +30,7 @@ func New(capacity int) *RealBuffer {
 
 // It has a non blocking offer
 func (r *RealBuffer) Offer(e event.Event) bool {
+	logrus.Infof("Buffering")
 	select {
 	case r.ch <- e:
 		return true

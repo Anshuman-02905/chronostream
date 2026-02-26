@@ -2,6 +2,8 @@ package event
 
 import (
 	"fmt"
+
+	"github.com/sirupsen/logrus"
 )
 
 // Build Contructs a fully deterministic , immutatble Event
@@ -28,6 +30,8 @@ import (
 func Build(freq Frequency, ts int64, seq uint64, producerVersion string, instanceID string) Event {
 	id := buildID(freq, ts, seq)
 	seed := buildSeed(ts, seq)
+	logrus.Infof("Building event %v,%v", freq, ts)
+
 	return Event{
 		ID:              id,
 		Frequency:       freq,
