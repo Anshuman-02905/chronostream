@@ -57,6 +57,7 @@ func (e *Engine) Start(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():
+				e.buffer.Close()
 				return
 			case tick, ok := <-e.scheduler.Ticks():
 				if !ok {

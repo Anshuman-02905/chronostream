@@ -1,6 +1,8 @@
 package buffer
 
 import (
+	"sync"
+
 	"github.com/Anshuman-02905/chronostream/internal/event"
 	"github.com/sirupsen/logrus"
 )
@@ -13,10 +15,12 @@ type Buffer interface {
 	Events() <-chan event.Event
 	Len() int
 	Cap() int
+	Close()
 }
 
 type RealBuffer struct {
-	ch chan event.Event
+	ch   chan event.Event
+	once sync.Once
 }
 
 // It is a bounded Buffer
@@ -50,4 +54,10 @@ func (r *RealBuffer) Len() int {
 
 func (r *RealBuffer) Cap() int {
 	return cap(r.ch)
+}
+
+func (r *RealBuffer) Close() {
+	r.once.Do(func() {
+		close(r.ch)
+	})
 }
