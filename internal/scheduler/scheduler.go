@@ -139,14 +139,14 @@ func (s *RealScheduler) Start(ctx context.Context) {
 				wait = 0
 			}
 
-			timer := time.NewTimer(wait)
+			timer := s.ts.NewTimer(wait)
 
 			select {
 			//if a service shutdown then context is cancelled Timer is stopped and Goroutine is exited cleanly
 			case <-ctx.Done():
 				timer.Stop()
 				return
-			case <-timer.C:
+			case <-timer.C():
 				tick := Tick{
 					Frequency:     s.frequency,
 					ScheduledTime: next.UnixNano(), // Unix.Nano is used get the exact number of nanoseconds elapsed from January 1, 1970, 00:00:00 UTC

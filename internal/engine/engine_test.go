@@ -18,7 +18,7 @@ func TestEngine_EndToEnd(t *testing.T) {
 
 	sch := scheduler.New(event.FrequencySecond, fakeTime, 1)
 	seq := sequence.New()
-	buf := buffer.New(10)
+	buf := buffer.New(100)
 	prod_version := "v1.0"
 	instance_id := "02905"
 	e := New(sch, seq, buf, prod_version, instance_id)
@@ -26,6 +26,8 @@ func TestEngine_EndToEnd(t *testing.T) {
 	defer cancel()
 
 	e.Start(ctx)
+	// Give scheduler time to reach its first NewTimer call
+	time.Sleep(5 * time.Millisecond)
 
 	fakeTime.Advance(time.Second)
 
@@ -37,7 +39,7 @@ func TestEngine_EndToEnd(t *testing.T) {
 		if ev.Frequency != event.FrequencySecond {
 			t.Errorf("Wrong Frequency")
 		}
-	case <-time.After(time.Millisecond * 500):
+	case <-time.After(time.Millisecond * 200):
 		t.Fatalf("Timeout:Event Never reached the buffer")
 	}
 
