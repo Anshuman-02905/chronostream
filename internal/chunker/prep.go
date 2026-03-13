@@ -56,7 +56,7 @@ func prepareMessage(msg string) ([]byte, string) {
 }
 
 func computeTotalChunks(byteLen int, chunkSize int) int {
-	return (byteLen + chunkSize + 1) / chunkSize
+	return (byteLen + chunkSize - 1) / chunkSize
 }
 func padPayload(msgBytes []byte, chunkSize int) []byte {
 	remainder := len(msgBytes) % chunkSize

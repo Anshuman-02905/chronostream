@@ -27,7 +27,7 @@ import (
 
 // Any Change to ID or Seed generation Logic is a breakig change for downstream consumers
 
-func Build(freq Frequency, ts int64, seq uint64, producerVersion string, instanceID string) Event {
+func Build(freq Frequency, ts int64, seq uint64, producerVersion string, instanceID string, payload []byte) Event {
 	id := buildID(freq, ts, seq)
 	seed := buildSeed(ts, seq)
 	logrus.Infof("Building event %v,%v", freq, ts)
@@ -41,6 +41,7 @@ func Build(freq Frequency, ts int64, seq uint64, producerVersion string, instanc
 		SchemaVersion:   1,
 		ProducerVersion: producerVersion,
 		InstanceID:      instanceID,
+		Payload:         payload,
 	}
 }
 

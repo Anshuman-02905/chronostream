@@ -45,4 +45,5 @@ type Event struct {
 	//Producer Metadata (flat ,immutable)
 	ProducerVersion string
 	InstanceID      string
+	Payload         []byte
 }

@@ -24,8 +24,8 @@ func TestEngine_EndToEnd(t *testing.T) {
 	e := New(sch, seq, buf, prod_version, instance_id)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	e.Start(ctx)
+	message := "HI I AM HERE"
+	e.Start(ctx, message)
 	// Give scheduler time to reach its first NewTimer call
 	time.Sleep(5 * time.Millisecond)
 

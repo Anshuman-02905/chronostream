@@ -1,10 +1,19 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"time"
 
+	"github.com/Anshuman-02905/chronostream/internal/buffer"
+	"github.com/Anshuman-02905/chronostream/internal/config"
+	"github.com/Anshuman-02905/chronostream/internal/dispatcher"
+	"github.com/Anshuman-02905/chronostream/internal/engine"
+	"github.com/Anshuman-02905/chronostream/internal/event"
 	"github.com/Anshuman-02905/chronostream/internal/monotime"
+	"github.com/Anshuman-02905/chronostream/internal/scheduler"
+	"github.com/Anshuman-02905/chronostream/internal/sequence"
+	"github.com/Anshuman-02905/chronostream/internal/transport"
 )
 
 type ProducerStruct struct {
@@ -24,9 +33,28 @@ type Event struct {
 
 func main() {
 	fmt.Println("Hello World!!")
-	ticker := time.NewTicker(500 * time.Millisecond)
+	//First load the configuration
+	var cfg config.Config
+	cfg.Load()
+
 	ts := monotime.RealTimeSource{}
-	for range ticker.C {
-		fmt.Println(ts.Now())
-	}
+
+	//buffer
+	buf := buffer.New(10)
+
+	//Sequencer
+	seq := sequence.New()
+	//scheduler
+	sch := scheduler.New(event.FrequencySecond, &ts, cfg.Engine.BufferSize)
+
+	eng := engine.New(sch, seq, buf, cfg.Engine.ProducerVersion, cfg.Engine.InstanceID)
+	ctx := context.Background()
+	message := "Hello"
+	eng.Start(ctx, message)
+
+	trans := transport.StdoutTransport{}
+	disp := dispatcher.New(buf, &trans)
+
+	go disp.Start(ctx)
+	select {}
 }

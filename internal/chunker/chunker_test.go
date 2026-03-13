@@ -94,3 +94,20 @@ func TestChunk_EdgeCases(t *testing.T) {
 		}
 	})
 }
+
+func TestChunk_AllOptions(t *testing.T) {
+	msg := "Hello"
+	chunkSize := 2
+	fragments := Chunk(msg, chunkSize, WithPadding(), WithPayloadCopy(), WithTruncateID(8))
+
+	if len(fragments) != 3 {
+		t.Errorf("Expected 3 fragemnts but got %v", len(fragments))
+	}
+	if len(fragments[0].MessageID) > 8 {
+		t.Errorf("Expected MessageID to be 8 but got %v", len(fragments[0].MessageID))
+	}
+
+	if string(fragments[0].Payload) != "He" {
+		t.Errorf("Expected Hel but received %v", string(fragments[0].Payload))
+	}
+}

@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"github.com/Anshuman-02905/chronostream/internal/buffer"
+	"github.com/Anshuman-02905/chronostream/internal/chunker"
 	"github.com/Anshuman-02905/chronostream/internal/event"
 	"github.com/Anshuman-02905/chronostream/internal/scheduler"
 	"github.com/Anshuman-02905/chronostream/internal/sequence"
-	"github.com/sirupsen/logrus"
 )
 
 //Engine is the composition root
@@ -32,7 +32,6 @@ func New(
 	producerVersion string,
 	instanceID string,
 ) *Engine {
-	logrus.Infof("Creating Engine event %v,%v,%v,%v,%v", s, seq, buf, producerVersion, instanceID)
 
 	return &Engine{
 		scheduler:       s,
@@ -50,7 +49,10 @@ func New(
 // Does not block Scheduler
 // Does not Know Transport
 // Only Wires/orchaestrate/glue services
-func (e *Engine) Start(ctx context.Context) {
+func (e *Engine) Start(ctx context.Context, message string) {
+	fragments := chunker.Chunk(message, 1024)
+	fragmentIdx := 0
+	//use the chunker package to get fragment and iterate via index
 	e.scheduler.Start(ctx)
 
 	go func() {
@@ -63,6 +65,7 @@ func (e *Engine) Start(ctx context.Context) {
 				if !ok {
 					return
 				}
+				payload := fragments[fragmentIdx].Payload
 				seq := e.sequencer.Next(tick.Frequency)
 				ev := event.Build(
 					tick.Frequency,
@@ -70,6 +73,7 @@ func (e *Engine) Start(ctx context.Context) {
 					seq,
 					e.producerVersion,
 					e.instanceID,
+					payload,
 				)
 				e.buffer.Offer(ev)
 			}
