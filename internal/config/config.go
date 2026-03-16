@@ -1,8 +1,6 @@
 package config
 
 import (
-	"strconv"
-
 	"github.com/spf13/viper"
 )
 
@@ -12,6 +10,11 @@ type Config struct {
 		InstanceID      string
 		BufferSize      int
 		Message         string
+	}
+	Dispatcher struct {
+		MaxRetries  int
+		BaseBackoff int
+		MaxBackoff  int
 	}
 }
 
@@ -25,7 +28,6 @@ func (c *Config) Load() {
 	}
 	c.Engine.ProducerVersion = viper.GetString("engine.producer_version")
 	c.Engine.InstanceID = viper.GetString("engine.instance_id")
-	val, _ := strconv.Atoi(viper.GetString("engine.buffer_size"))
-	c.Engine.BufferSize = val
+	c.Engine.BufferSize = viper.GetInt("engine.buffer_size")
 	c.Engine.Message = viper.GetString("engine.message")
 }

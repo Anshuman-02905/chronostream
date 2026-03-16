@@ -34,7 +34,6 @@ func New(capacity int) *RealBuffer {
 
 // It has a non blocking offer
 func (r *RealBuffer) Offer(e event.Event) bool {
-	logrus.Infof("Buffering")
 	select {
 	case r.ch <- e:
 		return true

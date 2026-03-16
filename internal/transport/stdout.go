@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -9,7 +10,7 @@ import (
 
 type StdoutTransport struct{}
 
-func (s *StdoutTransport) Send(e event.Event) error {
+func (s *StdoutTransport) Send(ctx context.Context, e event.Event) error {
 	data, err := json.Marshal(e)
 	if err != nil {
 		return err

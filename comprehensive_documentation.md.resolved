@@ -1,0 +1,86 @@
+#ChronoStream: Comprehensive Project Documentation ( Phase - 1)
+
+Welcome to the complete overview of the ChronoStream project. This document serves as an end-to-end architectural guide, detailing the current state of the codebase, the software design principles applied, our testing strategy, and the roadmap for AWS Kinesis Eventstream integration.
+
+---
+
+## 1. Core Architecture & Working Mechanism
+
+ChronoStream is a deterministic event producer designed to emit exact sequences of events at strictly scheduled intervals without drift. 
+
+### Data Flow
+1. **Engine**: The `engine` acts as the composition root. It wires together the `Scheduler`, `Sequencer`, and [Buffer](file:///Users/anshumanmandal/GIT/chronostream/internal/buffer/buffer.go#13-20). It does no actual computation to respect the *Single Responsibility Principle*. It simply listens to the `Scheduler` ticks, builds the `event`, and pushes it to the [Buffer](file:///Users/anshumanmandal/GIT/chronostream/internal/buffer/buffer.go#13-20).
+2. **Scheduler**: Ensures events are triggered at an exact `Frequency` using deterministic time tracking (via the `monotime` package to avoid OS time drift).
+3. **Sequencer**: Generates monotonically increasing, gapless sequence numbers per frequency, ensuring strict global ordering.
+4. **Buffer**: A strictly bounded channel-based buffer ([RealBuffer](file:///Users/anshumanmandal/GIT/chronostream/internal/buffer/buffer.go#21-25)) where the Engine drops events. It decouples the deterministic producer loop from the slower I/O mechanisms.
+5. **Dispatcher**: Runs in its own goroutine. It continuously pops events from the [Buffer](file:///Users/anshumanmandal/GIT/chronostream/internal/buffer/buffer.go#13-20) and attempts to send them via the [Transport](file:///Users/anshumanmandal/GIT/chronostream/internal/transport/transport.go#9-17). It now features an **Exponential Backoff & Retry** mechanism to prevent data loss on transient network failures.
+6. **Transport**: The interface abstraction for physical event delivery (e.g., [StdoutTransport](file:///Users/anshumanmandal/GIT/chronostream/internal/transport/stdout.go#11-12), `AwsKinesisTransport`).
+
+---
+
+## 2. Application of S.O.L.I.D. Principles
+
+The project was explicitly structured to adhere to SOLID principles from day one:
+
+### S: Single Responsibility Principle (SRP)
+Every package has exactly one reason to change:
+- `scheduler`: Only cares about time and ticking.
+- `sequence`: Only cares about generating deterministic numbers.
+- `transport`: Only cares about taking a payload and sending it over the wire.
+- `engine`: Only acts as the glue; it explicitly *does not* compute boundaries or format events. 
+
+### O: Open/Closed Principle (OCP)
+The application is open for extension but closed for modification. 
+- *Example*: To add Amazon Kinesis, we do not need to change the [Engine](file:///Users/anshumanmandal/GIT/chronostream/internal/engine/engine.go#19-27) or [Dispatcher](file:///Users/anshumanmandal/GIT/chronostream/internal/dispatcher/dispatcher.go#16-21) core logic. We simply implement the [Transport](file:///Users/anshumanmandal/GIT/chronostream/internal/transport/transport.go#9-17) interface (`AwsKinesisTransport`) and inject it.
+
+### L: Liskov Substitution Principle (LSP)
+Any struct implementing an interface can be swapped without breaking the system. 
+- [StdoutTransport](file:///Users/anshumanmandal/GIT/chronostream/internal/transport/stdout.go#11-12) and `AwsKinesisTransport` both implement [Transport](file:///Users/anshumanmandal/GIT/chronostream/internal/transport/transport.go#9-17). The [Dispatcher](file:///Users/anshumanmandal/GIT/chronostream/internal/dispatcher/dispatcher.go#16-21) treats them exactly the same and remains completely unaware of their internal mechanics.
+
+### I: Interface Segregation Principle (ISP)
+Interfaces are kept deliberately small. 
+- The [Transport](file:///Users/anshumanmandal/GIT/chronostream/internal/transport/transport.go#9-17) interface only requires two methods: [Send(ctx context.Context, e event.Event) error](file:///Users/anshumanmandal/GIT/chronostream/internal/transport/stdout.go#13-21) and [Close(ctx context.Context) error](file:///Users/anshumanmandal/GIT/chronostream/internal/buffer/buffer.go#58-63). We do not force transports to implement `Format` or `Retry` logic if they don't need it.
+
+### D: Dependency Inversion Principle (DIP)
+High-level modules do not depend on low-level modules; both depend on abstractions.
+- The [Dispatcher](file:///Users/anshumanmandal/GIT/chronostream/internal/dispatcher/dispatcher.go#16-21) struct takes a `buffer.Buffer` interface and a `transport.Transport` interface. It does not depend on the concrete [RealBuffer](file:///Users/anshumanmandal/GIT/chronostream/internal/buffer/buffer.go#21-25) or [StdoutTransport](file:///Users/anshumanmandal/GIT/chronostream/internal/transport/stdout.go#11-12). This makes the dispatcher perfectly mockable and testable.
+
+---
+
+## 3. Testing Strategy
+
+The testing philosophy for ChronoStream is purely **Deterministic Unit Testing** isolated by package constraints:
+
+- **Strict Isolation**: Because of Dependency Inversion, we test components like [Engine](file:///Users/anshumanmandal/GIT/chronostream/internal/engine/engine.go#19-27) and [Dispatcher](file:///Users/anshumanmandal/GIT/chronostream/internal/dispatcher/dispatcher.go#16-21) by passing them mocked Interfaces (e.g., a dummy Buffer or a dummy Transport) and asserting the outputs.
+- **Time Freezing**: The `monotime` package abstracts time. During testing (e.g., [scheduler_test.go](file:///Users/anshumanmandal/GIT/chronostream/internal/scheduler/scheduler_test.go)), we can mock the passage of time to instantly test long-running scenarios without actually sleeping.
+- **No I/O in Core Tests**: Network components are mocked out of engine and sequence tests. The core logic runs synchronously in memory, verifying sequence generation and deterministic field injection.
+- **Coverage Goal**: The goal for Phase 2 is achieving 100% path coverage on pure business logic packages (`scheduler`, `sequencer`, `chunker`, `dispatcher`).
+
+---
+
+## 4. Integration with Amazon Kinesis
+
+As we move into Phase 2, Kinesis acts as the foundational data lake ingestion point. Below is the detailed architecture for this integration.
+
+### The Transport Implementation (`AwsKinesisTransport`)
+We will create a new transport utilizing the `github.com/aws/aws-sdk-go-v2/service/kinesis` AWS SDK.
+
+1. **Context-Aware Design**: The updated [Transport](file:///Users/anshumanmandal/GIT/chronostream/internal/transport/transport.go#9-17) interface uses `context.Context`. The SDK requires this context to handle abrupt HTTP cancellations and graceful shutdown commands.
+2. **Exponential Backoff**: Added natively into the [Dispatcher](file:///Users/anshumanmandal/GIT/chronostream/internal/dispatcher/dispatcher.go#16-21). If `AwsKinesisTransport.Send()` returns an HTTP 5XX or Throttling error (`ProvisionedThroughputExceededException`), the [Dispatcher](file:///Users/anshumanmandal/GIT/chronostream/internal/dispatcher/dispatcher.go#16-21) temporarily halts buffer consumption and retries with increasing delay (configurable in [config.yaml](file:///Users/anshumanmandal/GIT/chronostream/config/config.yaml): `max_retries`, `base_backoff`, `max_backoff`).
+3. **Partition Keys**: Kinesis shards data based on strings called Partition Keys. ChronoStream will use the `instance_id` (e.g., `node-1`) as the partition key. Because Kinesis guarantees chronological ordering *per shard*, routing an entire instance's deterministic stream to a single shard ensures events arrive in exact order sequence.
+
+### Downstream Consumption (Databricks / Fabric)
+Once data lands in Kinesis, it serves as an immutable, replayable event log.
+
+**Databricks (Apache Spark Structured Streaming)**
+- Databricks natively connects to Kinesis.
+- Because ChronoStream events have explicit `Sequence` and precise `Timestamp` fields, Spark can perform **Watermarking** and ordered Window Aggregations. Late-arriving events within the specified watermark can be accurately reconstructed.
+
+**Microsoft Fabric (Real-Time Analytics)**
+- Fabric Eventstream can ingest Kinesis streams.
+- Events land instantly in a KQL (Kusto) Database.
+- Update policies can run synchronously upon ingestion to aggregate the deterministic pulses into minute-by-minute views for operational dashboarding.
+
+### Remaining Kinesis Tasks (Epic Pipeline)
+- Complete Batching support (`PutRecords` vs `PutRecord`) inside the Dispatcher to reduce AWS HTTP call overhead by batching events dynamically if the buffer has depth.
+- Add robust Dead-Letter Queue (DLQ) file logging in case Max Retries are exhausted, preventing total data loss on long AWS outages.

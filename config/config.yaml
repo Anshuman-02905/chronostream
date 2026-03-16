@@ -3,3 +3,7 @@ engine:
   instance_id: "node-1"
   buffer_size: "1024"
   message: "Deterministic Pulse"
+dispatcher:
+  max_retries: 5
+  base_backoff: 100
+  max_backoff: 5000
