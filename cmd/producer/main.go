@@ -8,6 +8,7 @@ import (
 	"github.com/Anshuman-02905/chronostream/internal/buffer"
 	"github.com/Anshuman-02905/chronostream/internal/config"
 	"github.com/Anshuman-02905/chronostream/internal/dispatcher"
+	"github.com/Anshuman-02905/chronostream/internal/dlq"
 	"github.com/Anshuman-02905/chronostream/internal/engine"
 	"github.com/Anshuman-02905/chronostream/internal/event"
 	"github.com/Anshuman-02905/chronostream/internal/monotime"
@@ -47,14 +48,21 @@ func main() {
 	//scheduler
 	sch := scheduler.New(event.FrequencySecond, &ts, cfg.Engine.BufferSize)
 
+	dq, _ := dlq.NewFileDlq(cfg.DLQ.Directory, cfg.Engine.InstanceID, &ts)
+
 	eng := engine.New(sch, seq, buf, cfg.Engine.ProducerVersion, cfg.Engine.InstanceID)
 	ctx := context.Background()
 	message := "Hello"
-	eng.Start(ctx, message)
+	go eng.Start(ctx, message)
 
-	trans := transport.StdoutTransport{}
-	disp := dispatcher.New(buf, &trans)
+	trans, err := transport.NewAwsKinesisTransport(ctx, cfg)
+	if err != nil {
+		panic(err)
+	}
+	defer trans.Close(ctx)
 
-	go disp.Start(ctx)
+	disp := dispatcher.New(buf, trans, cfg, &ts, dq)
+
+	go disp.StartBatch(ctx)
 	select {}
 }

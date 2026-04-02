@@ -7,3 +7,12 @@ dispatcher:
   max_retries: 5
   base_backoff: 100
   max_backoff: 5000
+dlq:
+  enabled: true
+  directory: "/Users/anshumanmandal/GIT/chronostream/dlq"
+
+kinesis:
+  enabled: true
+  stream_name: "chronostream-events"
+  region: "ap-south-1"
+  max_record_age: 5000

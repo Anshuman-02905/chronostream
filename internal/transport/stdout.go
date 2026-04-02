@@ -19,6 +19,15 @@ func (s *StdoutTransport) Send(ctx context.Context, e event.Event) error {
 	return nil
 }
 
-func (s *StdoutTransport) Close() error {
+func (s *StdoutTransport) Close(ctx context.Context) error {
+	return nil
+}
+
+func (s *StdoutTransport) SendBatch(ctx context.Context, e []event.Event) error {
+	data, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(data))
 	return nil
 }

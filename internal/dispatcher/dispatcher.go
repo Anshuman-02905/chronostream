@@ -6,7 +6,11 @@ import (
 
 	"github.com/Anshuman-02905/chronostream/internal/buffer"
 	"github.com/Anshuman-02905/chronostream/internal/config"
+	"github.com/Anshuman-02905/chronostream/internal/dlq"
+	"github.com/Anshuman-02905/chronostream/internal/event"
+	"github.com/Anshuman-02905/chronostream/internal/monotime"
 	"github.com/Anshuman-02905/chronostream/internal/transport"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -17,15 +21,19 @@ type Dispatcher struct {
 	buf   buffer.Buffer
 	trans transport.Transport
 	cfg   config.Config
+	ts    monotime.TimeSource
+	dlq   dlq.DLQ
 }
 
 //New Creates a new Dispatcher wiring a buffer to transport
 
-func New(buf buffer.Buffer, trans transport.Transport, cfg config.Config) *Dispatcher {
+func New(buf buffer.Buffer, trans transport.Transport, cfg config.Config, ts monotime.TimeSource, dlq dlq.DLQ) *Dispatcher {
 	return &Dispatcher{
 		buf:   buf,
 		trans: trans,
 		cfg:   cfg,
+		ts:    ts,
+		dlq:   dlq,
 	}
 }
 
@@ -53,7 +61,8 @@ func (d *Dispatcher) Start(ctx context.Context) {
 					break
 				}
 				if attempt == maxRetries {
-					logrus.WithError(err).Error("Max retries  reached , dropping event")
+					logrus.WithError(err).Error("Max retries  reached , dropping event Redirecting to DLQ")
+					d.dlq.Writebatch(ctx, []event.Event{ev})
 				}
 				backoff := baseDelay * time.Duration(1<<attempt)
 				if backoff > maxDelay {
@@ -73,4 +82,96 @@ func (d *Dispatcher) Start(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func (d *Dispatcher) StartBatch(ctx context.Context) {
+
+	flushInterval := time.Duration(d.cfg.Dispatcher.FlushInterval) * time.Millisecond
+	batchSize := d.cfg.Dispatcher.BatchSize
+	var batch []event.Event
+
+	timer := d.ts.NewTimer(flushInterval)
+	defer timer.Stop()
+
+	flush := func() {
+		if len(batch) == 0 {
+			return
+		}
+		toSend := batch
+		batch = nil
+		d.SendBatchWithRetry(ctx, toSend)
+	}
+	resetTimer := func() {
+		timer.Stop()
+		timer = d.ts.NewTimer(flushInterval)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			flush()
+			return
+		case ev, ok := <-d.buf.Events():
+			if !ok {
+				flush()
+				return
+			}
+			batch = append(batch, ev)
+
+		drainLoop:
+			for len(batch) < batchSize {
+				select {
+				case nextEv, ok := <-d.buf.Events():
+					if !ok {
+						flush()
+						break drainLoop
+					}
+					batch = append(batch, nextEv)
+				default:
+					break drainLoop
+				}
+			}
+			if len(batch) >= batchSize {
+				flush()
+				resetTimer()
+			}
+
+		case <-timer.C():
+			flush()
+			resetTimer()
+
+		}
+	}
+}
+
+func (d *Dispatcher) SendBatchWithRetry(ctx context.Context, events []event.Event) {
+	baseDelay := time.Duration(d.cfg.Dispatcher.BaseBackoff) * time.Millisecond
+	maxDelay := time.Duration(d.cfg.Dispatcher.MaxBackoff) * time.Millisecond
+	maxRetries := d.cfg.Dispatcher.MaxRetries
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		//Attempt to send event via Transport
+		err := d.trans.SendBatch(ctx, events)
+		if err == nil {
+			break
+		}
+		if attempt == maxRetries {
+			logrus.WithError(err).Error("Max retries reached dropping batch redirecting to DLQ")
+			d.dlq.Writebatch(ctx, events)
+		}
+		backoff := baseDelay * time.Duration(1<<attempt)
+		if backoff > maxDelay {
+			backoff = maxDelay
+		}
+		logrus.WithFields(logrus.Fields{
+			"attempt": attempt,
+			"delay":   backoff,
+		}).Warn("Batch dispatch failed Retrying")
+		select {
+		case <-time.After(backoff):
+		case <-ctx.Done():
+			return
+		}
+	}
+
 }
