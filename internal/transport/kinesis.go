@@ -35,11 +35,11 @@ func NewAwsKinesisTransport(ctx context.Context, kcfg cfg.Config) (*AwsKinesisTr
 		return nil, err
 	}
 	client := kinesis.NewFromConfig(awsCfg)
-	logrus.Infof("Instance ID is. %v", kcfg.Engine.InstanceID)
+	logrus.Infof("Instance ID is. %v", kcfg.Instance.ID)
 	return &AwsKinesisTransport{
 		client:     client,
 		streamName: kcfg.Kinesis.StreamName,
-		partition:  kcfg.Engine.InstanceID,
+		partition:  kcfg.Instance.ID,
 	}, nil
 
 }
@@ -54,7 +54,7 @@ func (k *AwsKinesisTransport) Send(ctx context.Context, e event.Event) error {
 		&kinesis.PutRecordInput{
 			StreamName:   aws.String(k.streamName),
 			Data:         data,
-			PartitionKey: aws.String(k.partition),
+			PartitionKey: aws.String(e.UserID), // Route by UserID so one user = one shard
 		},
 	)
 	if err != nil {

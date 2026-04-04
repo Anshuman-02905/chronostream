@@ -25,7 +25,7 @@ import (
 
 // Any Change to ID or Seed generation Logic is a breakig change for downstream consumers
 
-func Build(freq Frequency, ts int64, seq uint64, producerVersion string, instanceID string, payload []byte) Event {
+func Build(freq Frequency, ts int64, seq uint64, producerVersion string, instanceID string, payload []byte, sessionID string, userID string, messageId string, FragmentIdx int, TotalFragments int) Event {
 	id := buildID(freq, ts, seq)
 	seed := buildSeed(ts, seq)
 
@@ -39,6 +39,9 @@ func Build(freq Frequency, ts int64, seq uint64, producerVersion string, instanc
 		ProducerVersion: producerVersion,
 		InstanceID:      instanceID,
 		Payload:         payload,
+		EventType:       EventType(freq),
+		UserID:          userID,
+		SessionID:       sessionID,
 	}
 }
 

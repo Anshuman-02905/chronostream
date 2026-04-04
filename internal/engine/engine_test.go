@@ -10,6 +10,7 @@ import (
 	"github.com/Anshuman-02905/chronostream/internal/monotime"
 	"github.com/Anshuman-02905/chronostream/internal/scheduler"
 	"github.com/Anshuman-02905/chronostream/internal/sequence"
+	"github.com/Anshuman-02905/chronostream/internal/user"
 )
 
 func TestEngine_EndToEnd(t *testing.T) {
@@ -21,7 +22,14 @@ func TestEngine_EndToEnd(t *testing.T) {
 	buf := buffer.New(100)
 	prod_version := "v1.0"
 	instance_id := "02905"
-	e := New(sch, seq, buf, prod_version, instance_id)
+
+	// Create a minimal registry with 1 user using a fixed seed for determinism
+	registry, err := user.NewUserRegistry(1, 42)
+	if err != nil {
+		t.Fatalf("failed to create user registry: %v", err)
+	}
+
+	e := New(sch, seq, buf, registry, prod_version, instance_id)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	message := "HI I AM HERE"

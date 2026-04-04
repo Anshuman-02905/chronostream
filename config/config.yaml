@@ -1,18 +1,59 @@
-engine:
+# ── Instance ──
+instance:
+  id: "node-1"
   producer_version: "1.0"
-  instance_id: "node-1"
-  buffer_size: "1024"
-  message: "Deterministic Pulse"
-dispatcher:
-  max_retries: 5
-  base_backoff: 100
-  max_backoff: 5000
+
+# ── Pipeline Orchestration ──
+pipelines:
+  enabled_frequencies: ["second", "minute"]
+
+# ── Per-Frequency Config ──
+frequency_config:
+  second:
+    buffer_size: 10000
+    batch_size: 100
+    flush_interval_ms: 100
+    dispatcher:
+      max_retries: 5
+      base_backoff: 100
+      max_backoff: 1000
+  minute:
+    buffer_size: 1000
+    batch_size: 50
+    flush_interval_ms: 500
+    dispatcher:
+      max_retries: 10
+      base_backoff: 500
+      max_backoff: 5000
+  hour:
+    buffer_size: 100
+    batch_size: 10
+    flush_interval_ms: 1000
+    dispatcher:
+      max_retries: 15
+      base_backoff: 1000
+      max_backoff: 30000
+  day:
+    buffer_size: 10
+    batch_size: 5
+    flush_interval_ms: 5000
+    dispatcher:
+      max_retries: 20
+      base_backoff: 5000
+      max_backoff: 60000
+
+# ── User Simulation ──
+users:
+  count: 5
+  seed: 42
+
+# ── DLQ ──
 dlq:
   enabled: true
   directory: "/Users/anshumanmandal/GIT/chronostream/dlq"
 
+# ── Kinesis ──
 kinesis:
   enabled: true
   stream_name: "chronostream-events"
   region: "ap-south-1"
-  max_record_age: 5000

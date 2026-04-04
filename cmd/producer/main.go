@@ -3,66 +3,41 @@ package main
 import (
 	"context"
 	"fmt"
-	"time"
 
-	"github.com/Anshuman-02905/chronostream/internal/buffer"
 	"github.com/Anshuman-02905/chronostream/internal/config"
-	"github.com/Anshuman-02905/chronostream/internal/dispatcher"
-	"github.com/Anshuman-02905/chronostream/internal/dlq"
-	"github.com/Anshuman-02905/chronostream/internal/engine"
-	"github.com/Anshuman-02905/chronostream/internal/event"
-	"github.com/Anshuman-02905/chronostream/internal/monotime"
-	"github.com/Anshuman-02905/chronostream/internal/scheduler"
-	"github.com/Anshuman-02905/chronostream/internal/sequence"
+	"github.com/Anshuman-02905/chronostream/internal/pipeline"
 	"github.com/Anshuman-02905/chronostream/internal/transport"
 )
 
-type ProducerStruct struct {
-	version int
-	uuid    uint8
-}
-
-type Event struct {
-	uuid            int
-	timestamp       time.Time
-	FrequencyType   string
-	monotonicSeqNum int
-
-	Producer ProducerStruct
-	Version  string
-}
-
 func main() {
 	fmt.Println("Hello World!!")
-	//First load the configuration
+
+	// Load configuration from config.yaml
 	var cfg config.Config
 	cfg.Load()
+	fmt.Printf("Loaded config: instance_id=%s, enabled_frequencies=%v\n",
+		cfg.Instance.ID, cfg.Pipelines.EnabledFrequencies)
 
-	ts := monotime.RealTimeSource{}
-
-	//buffer
-	buf := buffer.New(10)
-
-	//Sequencer
-	seq := sequence.New()
-	//scheduler
-	sch := scheduler.New(event.FrequencySecond, &ts, cfg.Engine.BufferSize)
-
-	dq, _ := dlq.NewFileDlq(cfg.DLQ.Directory, cfg.Engine.InstanceID, &ts)
-
-	eng := engine.New(sch, seq, buf, cfg.Engine.ProducerVersion, cfg.Engine.InstanceID)
+	// Create Kinesis transport (shared across all frequency pipelines)
 	ctx := context.Background()
-	message := "Hello"
-	go eng.Start(ctx, message)
-
 	trans, err := transport.NewAwsKinesisTransport(ctx, cfg)
 	if err != nil {
 		panic(err)
 	}
 	defer trans.Close(ctx)
 
-	disp := dispatcher.New(buf, trans, cfg, &ts, dq)
+	// Create PipelineGroup with all enabled frequency pipelines
+	// This replaces the single-frequency setup above
+	group, err := pipeline.NewGroup(cfg, trans)
+	if err != nil {
+		panic(err)
+	}
 
-	go disp.StartBatch(ctx)
+	// Start all frequency pipelines concurrently
+	// Each frequency (Second, Minute, Hour, Day) runs independently
+	group.StartAll(ctx)
+	fmt.Println("All frequency pipelines started")
+
+	// Keep producer running indefinitely
 	select {}
 }

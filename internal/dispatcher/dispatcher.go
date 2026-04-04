@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/Anshuman-02905/chronostream/internal/buffer"
-	"github.com/Anshuman-02905/chronostream/internal/config"
 	"github.com/Anshuman-02905/chronostream/internal/dlq"
 	"github.com/Anshuman-02905/chronostream/internal/event"
 	"github.com/Anshuman-02905/chronostream/internal/monotime"
@@ -14,20 +13,30 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// DispatcherConfig holds per-frequency dispatch settings
+// Each FrequencyPipeline creates its own DispatcherConfig from the per-frequency config
+type DispatcherConfig struct {
+	MaxRetries    int
+	BaseBackoff   int // milliseconds
+	MaxBackoff    int // milliseconds
+	BatchSize     int
+	FlushInterval int // milliseconds
+}
+
 //Dispatcher is responsible for consuming events from buffer and routing them to a transport
 //it will eventually handle retries ,Dead letter  and delivery semantics
 
 type Dispatcher struct {
 	buf   buffer.Buffer
 	trans transport.Transport
-	cfg   config.Config
+	cfg   DispatcherConfig
 	ts    monotime.TimeSource
 	dlq   dlq.DLQ
 }
 
 //New Creates a new Dispatcher wiring a buffer to transport
 
-func New(buf buffer.Buffer, trans transport.Transport, cfg config.Config, ts monotime.TimeSource, dlq dlq.DLQ) *Dispatcher {
+func New(buf buffer.Buffer, trans transport.Transport, cfg DispatcherConfig, ts monotime.TimeSource, dlq dlq.DLQ) *Dispatcher {
 	return &Dispatcher{
 		buf:   buf,
 		trans: trans,
@@ -41,9 +50,9 @@ func New(buf buffer.Buffer, trans transport.Transport, cfg config.Config, ts mon
 //It stops when the context is cancelled or the buffer channel is closed
 
 func (d *Dispatcher) Start(ctx context.Context) {
-	baseDelay := time.Duration(d.cfg.Dispatcher.BaseBackoff) * time.Millisecond
-	maxDelay := time.Duration(d.cfg.Dispatcher.MaxBackoff) * time.Millisecond
-	maxRetries := d.cfg.Dispatcher.MaxRetries
+	baseDelay := time.Duration(d.cfg.BaseBackoff) * time.Millisecond
+	maxDelay := time.Duration(d.cfg.MaxBackoff) * time.Millisecond
+	maxRetries := d.cfg.MaxRetries
 	for {
 		select {
 		case <-ctx.Done():
@@ -86,8 +95,8 @@ func (d *Dispatcher) Start(ctx context.Context) {
 
 func (d *Dispatcher) StartBatch(ctx context.Context) {
 
-	flushInterval := time.Duration(d.cfg.Dispatcher.FlushInterval) * time.Millisecond
-	batchSize := d.cfg.Dispatcher.BatchSize
+	flushInterval := time.Duration(d.cfg.FlushInterval) * time.Millisecond
+	batchSize := d.cfg.BatchSize
 	var batch []event.Event
 
 	timer := d.ts.NewTimer(flushInterval)
@@ -145,9 +154,9 @@ func (d *Dispatcher) StartBatch(ctx context.Context) {
 }
 
 func (d *Dispatcher) SendBatchWithRetry(ctx context.Context, events []event.Event) {
-	baseDelay := time.Duration(d.cfg.Dispatcher.BaseBackoff) * time.Millisecond
-	maxDelay := time.Duration(d.cfg.Dispatcher.MaxBackoff) * time.Millisecond
-	maxRetries := d.cfg.Dispatcher.MaxRetries
+	baseDelay := time.Duration(d.cfg.BaseBackoff) * time.Millisecond
+	maxDelay := time.Duration(d.cfg.MaxBackoff) * time.Millisecond
+	maxRetries := d.cfg.MaxRetries
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		//Attempt to send event via Transport
