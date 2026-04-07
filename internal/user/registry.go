@@ -73,7 +73,6 @@ func (ur *UserRegistry) AssignSignal(id string, signalType signal.SignalType) er
 	}
 	//Assign the signal type
 	user.SignalType = signalType
-
 	return nil
 
 }

@@ -2,7 +2,6 @@ package signal
 
 import (
 	"fmt"
-	"math"
 )
 
 type SignalType string
@@ -15,21 +14,60 @@ const (
 	Square     SignalType = "square"
 )
 
-func Generate(st SignalType, t int64, amplitude, hz float64) (float64, error) {
+func GetbaseSignal(st SignalType, amplitude, hz float64) (SignalFunc, error) {
 
 	switch st {
 	case Sine:
-		return amplitude * math.Sin(2*math.Pi*hz*float64(t)), nil
+		return SinSignal(amplitude, hz)
 	case Cosine:
-		return amplitude * math.Cos(2*math.Pi*hz*float64(t)), nil
+		return CosSignal(amplitude, hz)
 	case SawTooth:
-		return amplitude * (2 * (float64(t)*hz - math.Floor(float64(t)*hz+0.5))), nil
+		return SawToothSignal(amplitude, hz)
 	case Square:
-		return amplitude * math.Sin(math.Sin(2*math.Pi*hz*float64(t))), nil
+		return SquareSignal(amplitude, hz)
 	case RandomWalk:
-		return amplitude * math.Sin(2*math.Pi*hz*float64(t)), nil
+		return RandomWalkSignal(amplitude, hz)
 	}
-	return -1, fmt.Errorf("Signal Type not Found")
+	return nil, fmt.Errorf("Signal Type not Found")
+}
+
+func CreateSignalPipeline(
+	signalType SignalType,
+	amplitude float64,
+	hz float64,
+	sigma float64,
+	sampleSeed float64,
+	anamolyProbablity float64,
+	anamolyMagnitude float64,
+	DriftRate float64,
+) (SignalFunc, error) {
+	base, err := GetbaseSignal(signalType, amplitude, hz)
+	if err != nil {
+		return nil, err
+	}
+	return BuildPipeline(
+		base,
+		Noise(sigma, sampleSeed),
+		Drift(DriftRate),
+		Anomaly(anamolyProbablity, anamolyMagnitude, sampleSeed),
+	), nil
+}
+
+func Generate(signalType SignalType,
+	t int64,
+	amplitude float64,
+	hz float64,
+	sigma float64,
+	sampleSeed float64,
+	anamolyProbablity float64,
+	anamolyMagnitude float64,
+	driftRate float64,
+) (float64, error) {
+	pipeline, err := CreateSignalPipeline(signalType, amplitude, hz, sigma, sampleSeed, anamolyProbablity, anamolyMagnitude, driftRate)
+	if err != nil {
+		return 0, err
+	}
+	return pipeline(t), err
 }
 
 func GetAllSignals() []SignalType {

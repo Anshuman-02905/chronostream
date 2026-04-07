@@ -13,6 +13,10 @@ frequency_config:
     buffer_size: 10000
     batch_size: 100
     flush_interval_ms: 100
+    sigma: 0.05
+    anamoly_probablity: 0.002
+    anomaly_magnitude: 2.0
+    drift_rate: 0.001
     dispatcher:
       max_retries: 5
       base_backoff: 100
@@ -21,6 +25,10 @@ frequency_config:
     buffer_size: 1000
     batch_size: 50
     flush_interval_ms: 500
+    sigma: 0.05
+    anamoly_probablity: 0.002
+    anomaly_magnitude: 2.0
+    drift_rate: 0.001
     dispatcher:
       max_retries: 10
       base_backoff: 500
@@ -29,6 +37,10 @@ frequency_config:
     buffer_size: 100
     batch_size: 10
     flush_interval_ms: 1000
+    sigma: 0.05
+    anamoly_probablity: 0.002
+    anomaly_magnitude: 2.0
+    drift_rate: 0.001
     dispatcher:
       max_retries: 15
       base_backoff: 1000
@@ -37,6 +49,10 @@ frequency_config:
     buffer_size: 10
     batch_size: 5
     flush_interval_ms: 5000
+    sigma: 0.05
+    anamoly_probablity: 0.002
+    anomaly_magnitude: 2.0
+    drift_rate: 0.001
     dispatcher:
       max_retries: 20
       base_backoff: 5000

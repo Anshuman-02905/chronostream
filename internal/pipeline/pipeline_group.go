@@ -45,13 +45,17 @@ func NewGroup(cfg config.Config, tsp transport.Transport) (*PipelineGroup, error
 
 		// Build a PipelineConfig from the per-frequency settings
 		pCfg := PipelineConfig{
-			Frequency:       freq,
-			BufferSize:      freqCfg.BufferSize,
-			DLQDirectory:    cfg.DLQ.Directory,
-			InstanceID:      cfg.Instance.ID,
-			ProducerVersion: cfg.Instance.ProducerVersion,
-			TimeSource:      ts,
-			Users:           registry,
+			Frequency:         freq,
+			BufferSize:        freqCfg.BufferSize,
+			DLQDirectory:      cfg.DLQ.Directory,
+			InstanceID:        cfg.Instance.ID,
+			ProducerVersion:   cfg.Instance.ProducerVersion,
+			TimeSource:        ts,
+			Users:             registry,
+			Sigma:             freqCfg.Sigma,
+			AnamolyProbablity: freqCfg.AnomalyProbablity,
+			Magnitude:         freqCfg.Magnitude,
+			DriftRate:         freqCfg.DriftRate,
 			Dispatcher: dispatcher.DispatcherConfig{
 				MaxRetries:    freqCfg.Dispatcher.MaxRetries,
 				BaseBackoff:   freqCfg.Dispatcher.BaseBackoff,

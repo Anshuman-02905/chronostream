@@ -3,6 +3,9 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"hash/fnv"
+	"math/rand"
 
 	"github.com/Anshuman-02905/chronostream/internal/buffer"
 	"github.com/Anshuman-02905/chronostream/internal/chunker"
@@ -26,15 +29,21 @@ type Engine struct {
 	buffer    buffer.Buffer
 	registry  *user.UserRegistry
 
-	producerVersion string
-	instanceID      string
+	producerVersion   string
+	instanceID        string
+	sigma             float64 // Gaussian noise standard deviation
+	anamolyProbablity float64
+	magnitude         float64
+	driftRate         float64
 }
 
 type UserSignalPayload struct {
 	UserID    string  `json:"user_id"`
 	Session   string  `json:"session"`
 	Signal    string  `json:"signal"`
-	Value     float64 `json:"value"`
+	Value     float64 `json:"value"`      // signal + noise (what Bronze receives)
+	RawSignal float64 `json:"raw_signal"` // clean signal before noise (for validation)
+	Noise     float64 `json:"noise"`      // noise component
 	Timestamp int64   `json:"timestamp"`
 }
 
@@ -45,15 +54,23 @@ func New(
 	registry *user.UserRegistry,
 	producerVersion string,
 	instanceID string,
+	sigma float64,
+	anamolyProbablity float64,
+	magnitude float64,
+	driftRate float64,
 ) *Engine {
 
 	return &Engine{
-		scheduler:       s,
-		sequencer:       seq,
-		buffer:          buf,
-		registry:        registry,
-		producerVersion: producerVersion,
-		instanceID:      instanceID,
+		scheduler:         s,
+		sequencer:         seq,
+		buffer:            buf,
+		registry:          registry,
+		producerVersion:   producerVersion,
+		instanceID:        instanceID,
+		sigma:             sigma,
+		anamolyProbablity: anamolyProbablity,
+		magnitude:         magnitude,
+		driftRate:         driftRate,
 	}
 }
 
@@ -96,7 +113,19 @@ func (e *Engine) Start(ctx context.Context, message string) {
 				// Emit one event per user per tick
 				for _, u := range users {
 					tSec := float64(tick.ScheduledTime) / 1e9
-					yValue, err := signal.Generate(u.SignalType, int64(tSec), 1.0, 1.0)
+					seq := e.sequencer.Next(tick.Frequency)
+
+					// Signal generation with noise
+					const (
+						SignalAmplitude = 1.0 // Signal oscillates between -1.0 and +1.0
+						SignalFrequency = 0.1 // 0.1 Hz = one cycle per 10 seconds
+					)
+
+					// Derive deterministic noise seed from event properties
+					noiseSeed := e.deriveNoiseSeed(u.ID, &tick, seq)
+
+					// Generate signal with noise (signal.Generate includes noise injection internally)
+					yValue, err := signal.Generate(u.SignalType, int64(tSec), SignalAmplitude, SignalFrequency, e.sigma, float64(noiseSeed), e.anamolyProbablity, e.magnitude, e.driftRate)
 					if err != nil {
 						logrus.WithFields(logrus.Fields{
 							"user_id":     u.ID,
@@ -105,11 +134,12 @@ func (e *Engine) Start(ctx context.Context, message string) {
 						continue
 					}
 
+					// Create payload
 					p := UserSignalPayload{
 						UserID:    u.ID,
 						Session:   u.Session,
 						Signal:    string(u.SignalType),
-						Value:     yValue,
+						Value:     yValue, // signal + noise (what Bronze receives)
 						Timestamp: int64(tSec),
 					}
 					jsonBytes, err := json.Marshal(p)
@@ -120,7 +150,7 @@ func (e *Engine) Start(ctx context.Context, message string) {
 
 					fragments := chunker.Chunk(string(jsonBytes), 1024)
 					for _, frag := range fragments {
-						seq := e.sequencer.Next(tick.Frequency)
+
 						ev := event.Build(
 							tick.Frequency,
 							tick.ScheduledTime,
@@ -147,4 +177,22 @@ func (e *Engine) Start(ctx context.Context, message string) {
 			}
 		}
 	}()
+}
+
+// addGaussianNoise generates Gaussian noise with given seed and sigma
+func addGaussianNoise(seed int64, sigma float64) float64 {
+	r := rand.New(rand.NewSource(seed))
+	return r.NormFloat64() * sigma // Gaussian with mean=0, stddev=sigma
+}
+
+func (e *Engine) deriveNoiseSeed(userID string, tick *scheduler.Tick, seq uint64) int64 {
+
+	h := fnv.New64a()
+	h.Write([]byte(e.instanceID))
+	h.Write([]byte(userID))
+	h.Write([]byte(fmt.Sprintf("%d", tick.Frequency)))
+	h.Write([]byte(fmt.Sprintf("%d", tick.ScheduledTime)))
+	h.Write([]byte(fmt.Sprintf("%d", seq)))
+	return int64(h.Sum64())
+
 }

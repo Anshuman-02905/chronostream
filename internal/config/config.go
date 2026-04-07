@@ -6,10 +6,14 @@ import (
 
 // FrequencyConfig holds configuration for a single frequency
 type FrequencyConfig struct {
-	BufferSize      int
-	BatchSize       int
-	FlushIntervalMs int
-	Dispatcher      struct {
+	BufferSize        int
+	BatchSize         int
+	FlushIntervalMs   int
+	Sigma             float64
+	AnomalyProbablity float64
+	Magnitude         float64
+	DriftRate         float64
+	Dispatcher        struct {
 		MaxRetries  int
 		BaseBackoff int
 		MaxBackoff  int
@@ -76,9 +80,13 @@ func (c *Config) Load() {
 	frequencies := []string{"second", "minute", "hour", "day"}
 	for _, freq := range frequencies {
 		freqCfg := &FrequencyConfig{
-			BufferSize:      viper.GetInt("frequency_config." + freq + ".buffer_size"),
-			BatchSize:       viper.GetInt("frequency_config." + freq + ".batch_size"),
-			FlushIntervalMs: viper.GetInt("frequency_config." + freq + ".flush_interval_ms"),
+			BufferSize:        viper.GetInt("frequency_config." + freq + ".buffer_size"),
+			BatchSize:         viper.GetInt("frequency_config." + freq + ".batch_size"),
+			FlushIntervalMs:   viper.GetInt("frequency_config." + freq + ".flush_interval_ms"),
+			Sigma:             viper.GetFloat64("frequency_config." + freq + ".sigma"),
+			AnomalyProbablity: viper.GetFloat64("frequency_config." + freq + ".anamoly_probablity"),
+			Magnitude:         viper.GetFloat64("frequency_config." + freq + ".magnitude"),
+			DriftRate:         viper.GetFloat64("frequency_config." + freq + ".drift_rate"),
 		}
 		freqCfg.Dispatcher.MaxRetries = viper.GetInt("frequency_config." + freq + ".dispatcher.max_retries")
 		freqCfg.Dispatcher.BaseBackoff = viper.GetInt("frequency_config." + freq + ".dispatcher.base_backoff")

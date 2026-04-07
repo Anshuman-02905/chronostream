@@ -22,15 +22,19 @@ type FrequencyPipeline struct {
 	wg     sync.WaitGroup
 	cancel context.CancelFunc
 
-	Freq        event.Frequency
-	Scheduler   scheduler.Scheduler
-	Sequencer   sequence.Sequencer
-	Buffer      buffer.Buffer
-	Engine      engine.Engine
-	Dispatcher  *dispatcher.Dispatcher
-	TimeSource  monotime.TimeSource
-	statusMutex sync.RWMutex
-	status      PipelineStatus
+	Freq              event.Frequency
+	Scheduler         scheduler.Scheduler
+	Sequencer         sequence.Sequencer
+	Buffer            buffer.Buffer
+	Engine            engine.Engine
+	Dispatcher        *dispatcher.Dispatcher
+	TimeSource        monotime.TimeSource
+	statusMutex       sync.RWMutex
+	status            PipelineStatus
+	Sigma             float64
+	AnamolyProbablity float64
+	Magnitude         float64
+	DriftRate         float64
 }
 type PipelineStatus struct {
 	IsRunning       bool
@@ -40,14 +44,18 @@ type PipelineStatus struct {
 }
 
 type PipelineConfig struct {
-	Frequency       event.Frequency
-	BufferSize      int
-	DLQDirectory    string
-	InstanceID      string
-	ProducerVersion string
-	TimeSource      monotime.TimeSource
-	Dispatcher      dispatcher.DispatcherConfig
-	Users           *user.UserRegistry
+	Frequency         event.Frequency
+	BufferSize        int
+	DLQDirectory      string
+	InstanceID        string
+	ProducerVersion   string
+	TimeSource        monotime.TimeSource
+	Dispatcher        dispatcher.DispatcherConfig
+	Users             *user.UserRegistry
+	Sigma             float64
+	AnamolyProbablity float64
+	Magnitude         float64
+	DriftRate         float64
 }
 
 // How FrequencyPipeline will use Transport
@@ -61,17 +69,21 @@ func New(cfg PipelineConfig, tsp transport.Transport) (*FrequencyPipeline, error
 		return nil, err
 	}
 
-	eng := engine.New(sch, seq, buf, cfg.Users, cfg.ProducerVersion, cfg.InstanceID)
+	eng := engine.New(sch, seq, buf, cfg.Users, cfg.ProducerVersion, cfg.InstanceID, cfg.Sigma, cfg.AnamolyProbablity, cfg.Magnitude, cfg.DriftRate)
 	ds := dispatcher.New(buf, tsp, cfg.Dispatcher, cfg.TimeSource, d)
 
 	return &FrequencyPipeline{
-		Freq:       cfg.Frequency,
-		Scheduler:  sch,
-		Sequencer:  seq,
-		Buffer:     buf,
-		Engine:     *eng,
-		Dispatcher: ds,
-		TimeSource: cfg.TimeSource,
+		Freq:              cfg.Frequency,
+		Scheduler:         sch,
+		Sequencer:         seq,
+		Buffer:            buf,
+		Engine:            *eng,
+		Dispatcher:        ds,
+		TimeSource:        cfg.TimeSource,
+		Sigma:             cfg.Sigma,
+		AnamolyProbablity: cfg.AnamolyProbablity,
+		Magnitude:         cfg.Magnitude,
+		DriftRate:         cfg.DriftRate,
 	}, nil
 }
 
